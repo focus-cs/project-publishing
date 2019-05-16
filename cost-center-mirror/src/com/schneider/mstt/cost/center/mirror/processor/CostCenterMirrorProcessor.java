@@ -6,6 +6,9 @@ import com.schneider.mstt.cost.center.mirror.exceptions.FileException;
 import com.schneider.mstt.cost.center.mirror.file.CsvParser;
 import com.schneider.mstt.cost.center.mirror.file.LogManager;
 import com.schneider.mstt.cost.center.mirror.model.CostCenter;
+import com.schneider.mstt.cost.center.mirror.service.SciformaService;
+import com.sciforma.psnext.api.DataViewRow;
+import com.sciforma.psnext.api.PSException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,7 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.logging.Level;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.log4j.Logger;
@@ -23,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.util.StopWatch;
 
 @Configuration
 @PropertySource("file:${user.dir}/conf/psconnect.properties")
@@ -40,6 +44,8 @@ public class CostCenterMirrorProcessor {
 
     @Autowired
     private CsvParser csvParser;
+    @Autowired
+    private SciformaService sciformaService;
 
     public ReturnCode process() {
 
@@ -67,51 +73,147 @@ public class CostCenterMirrorProcessor {
                 LOG.info("No CSV request file to be processed");
                 return ReturnCode.SUCCESS;
             }
+            
+            LOG.info("Found " + paths.size() + " file(s) to process");
 
-            for (Path path : paths) {
+            if (sciformaService.createConnection()) {
 
-                LOG.info("Processing file " + path.toString());
+                if (sciformaService.openGlobal()) {
 
-                LogManager logManager = LogManager.builder()
-                        .filename(getFileNameWithoutExtension(path.toFile()))
-                        .build();
+                    StopWatch stopWatchDataView = new StopWatch();
+                    stopWatchDataView.start();
+                    List<DataViewRow> costCenterMirrorManagementDataView = sciformaService.getDataView();
+                    stopWatchDataView.stop();
+                    LOG.info("DataView retrieved in " + stopWatchDataView.getTotalTimeSeconds() + " seconds");
 
-                boolean status = false;
+                    if (costCenterMirrorManagementDataView != null && !costCenterMirrorManagementDataView.isEmpty()) {
 
-                try {
-                    List<CostCenter> costCenters = csvParser.parse(path);
+                        for (Path path : paths) {
 
-                    for (CostCenter costCenter : costCenters) {
+                            LogManager logManager = LogManager.builder()
+                                    .directory(logsDirectory)
+                                    .filename(getFileNameWithoutExtension(path.toFile()))
+                                    .build();
 
-                        if (costCenter.getAction().equals(Action.CREATION)) {
+                            boolean status = false;
+
+                            try {
+                                LOG.info("Processing file " + path.toString());
+                                List<CostCenter> costCenters = csvParser.parse(path);
+                                LOG.info("Found " + costCenters.size() + " line(s)");
+
+                                for (CostCenter costCenter : costCenters) {
+
+                                    logManager.info("Action : " + costCenter.getAction());
+
+                                    StopWatch stopWatch = new StopWatch();
+                                    stopWatch.start();
+                                    logManager.info("Looking for data row");
+                                    Optional<DataViewRow> existingRow = findRow(costCenterMirrorManagementDataView, costCenter);
+                                    stopWatch.stop();
+                                    logManager.info("Looking for data row took " + stopWatch.getTotalTimeSeconds() + " seconds");
+
+                                    if (costCenter.getAction().equals(Action.CREATION)) {
+
+                                        if (existingRow.isPresent()) {
+                                            logManager.error("Line rejected : cost center already exists");
+                                            logManager.error("Error code : " + ReturnCode.FAILED_TO_CREATE_LINE.ordinal());
+                                        } else {
+
+                                            try {
+                                                logManager.info("Inserting row");
+                                                updateRow(sciformaService.createDataViewRow(), costCenter);
+                                                logManager.info("Row inserted");
+                                                status = true;
+                                            } catch (PSException ex) {
+                                                LOG.error("Failed to create cost center", ex);
+                                                logManager.error("Failed to create cost center : " + ex.getMessage());
+                                            }
+
+                                        }
+                                    }
+
+                                    if (costCenter.getAction().equals(Action.UPDATE)) {
+
+                                        if (existingRow.isPresent()) {
+
+                                            DataViewRow rowToUpdate = existingRow.get();
+                                            try {
+                                                logManager.info("Updating row");
+                                                updateRow(rowToUpdate, costCenter);
+                                                logManager.info("Row updated");
+                                                status = true;
+                                            } catch (PSException ex) {
+                                                LOG.error("Failed to update cost center", ex);
+                                                logManager.error("Failed to update cost center : " + ex.getMessage());
+                                            }
+
+                                        } else {
+                                            logManager.error("Line rejected : cost center doesn't exists");
+                                            logManager.error("Error code : " + ReturnCode.FAILED_TO_CREATE_LINE.ordinal());
+                                        }
+
+                                    }
+
+                                }
+
+                            } catch (FileException ex) {
+                                logManager.error(ex.getMessage());
+                                logManager.error("Failed to process file, the process will exit with code " + ReturnCode.FILE_ERROR.ordinal());
+                            } finally {
+                                moveFile(path, status);
+                                logManager.saveLogFile(status);
+                            }
+
+                            LOG.info("File processed");
 
                         }
-
-                        if (costCenter.getAction().equals(Action.UPDATE)) {
-
-                        }
-                        
                     }
 
-                } catch (FileException ex) {
-                    logManager.log(ex.getMessage());
-                    logManager.log("Failed to process file, the process will exit with code " + ReturnCode.FILE_ERROR.ordinal());
-                    status = false;
                 }
 
-                moveFile(path, false);
-                logManager.saveLogFile(status);
-
-                LOG.info("File processed");
-
+            } else {
+                return ReturnCode.MSTT_ACCESS;
             }
 
         } catch (IOException ex) {
             LOG.error(ex);
+        } finally {
+            sciformaService.saveAndCloseGlobal();
+            sciformaService.closeConnection();
         }
 
         return ReturnCode.SUCCESS;
 
+    }
+
+    private Optional<DataViewRow> findRow(List<DataViewRow> dataViewRows, CostCenter costCenter) {
+
+        for (DataViewRow dataViewRow : dataViewRows) {
+
+            try {
+
+                if (dataViewRow.getStringField("Internal cost center ID").equals(costCenter.getInternalCostCenterId())
+                        && dataViewRow.getStringField("Secondary mirror global cost center ID").equals(costCenter.getSecondMirrorGccId())
+                        && dataViewRow.getStringField("Secondary mirror global cost center RE").equals(costCenter.getSecondMirrorGccRe())) {
+
+                    return Optional.of(dataViewRow);
+
+                }
+
+            } catch (PSException ex) {
+                LOG.error("Failed to read data view row", ex);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private boolean updateRow(DataViewRow rowToUpdate, CostCenter costCenter) throws PSException {
+        rowToUpdate.setStringField("Last update by", costCenter.getLastUpdateBy());
+        rowToUpdate.setDateField("Last update date", costCenter.getLastUpdate());
+        rowToUpdate.setStringField("Status", costCenter.getStatus().toString().toLowerCase());
+        return true;
     }
 
     private boolean validateProperties() {

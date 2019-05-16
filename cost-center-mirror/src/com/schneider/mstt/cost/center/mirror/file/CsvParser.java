@@ -22,7 +22,7 @@ import org.springframework.context.annotation.PropertySource;
 @PropertySource("file:${user.dir}/conf/psconnect.properties")
 public class CsvParser {
 
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
     private static final String[] HEADER = {
         "Internal_CC_ID",
         "Second_Mir_GCC_ID",
@@ -42,7 +42,7 @@ public class CsvParser {
         try (BufferedReader bufferReader = Files.newBufferedReader(path)) {
             String header = bufferReader.readLine();
 
-            if (!header.equals(buildHeader())) {
+            if (!buildHeader().equals(header)) {
                 throw new FileException("Missing header");
             }
 

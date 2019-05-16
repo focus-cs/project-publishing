@@ -15,19 +15,32 @@ import org.apache.log4j.Logger;
 public class LogManager {
     
     private static SimpleDateFormat sdfFilename = new SimpleDateFormat("yyyyMMddHHmmss");
+    private static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     
     private String filename;
     private String directory;
     private List<String> logs;
     
-    public void log(String line) {
-        
+    public void info(String line) {
+        addLog("INFO" + " " + line);
+    }
+    
+    public void error(String line) {
+        addLog("ERROR" + " " + line);
+    }
+    
+    public void debug(String line) {
+        addLog("DEBUG" + " " + line);
+    }
+    
+    private void addLog(String line) {
         if (logs == null) {
             logs = new ArrayList<>();
         }
         
-        logs.add(line);
+        String logMessage = sdf.format(new Date()) + " " + line;
         
+        logs.add(logMessage);
     }
     
     public void saveLogFile(boolean success) {
@@ -39,13 +52,14 @@ public class LogManager {
                 .append(sdfFilename.format(new Date()))
                 .append("_")
                 .append(success ? "OK" : "KO")
-                .append(".csv")
+                .append(".log")
                 .toString();
                 
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(fullPath))) {
             
             for(String log : logs) {
                 writer.write(log);
+                writer.newLine();
             }
             
         } catch (IOException ex) {
