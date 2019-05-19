@@ -50,9 +50,16 @@ public class CostCenterMirrorProcessor {
     public ReturnCode process() {
 
         if (!validateProperties()) {
+            LOG.error("Properties are not valid");
             return ReturnCode.MISSING_PROPERTIES;
         }
 
+        File requests = new File(requestDirectory);
+        if (!requests.exists()) {
+            LOG.error("Missing request folder");
+            return ReturnCode.MISSING_REQUEST_FOLDER;
+        }
+        
         File results = new File(resultsDirectory);
         if (!results.exists()) {
             results.mkdirs();
@@ -108,7 +115,7 @@ public class CostCenterMirrorProcessor {
 
                                     StopWatch stopWatch = new StopWatch();
                                     stopWatch.start();
-                                    logManager.info("Looking for data row");
+                                    logManager.info("Looking for data row with key " + costCenter.getInternalCostCenterId() + " - " + costCenter.getSecondMirrorGccRe()+ " - " + costCenter.getSecondMirrorGccId());
                                     Optional<DataViewRow> existingRow = findRow(costCenterMirrorManagementDataView, costCenter);
                                     stopWatch.stop();
                                     logManager.info("Looking for data row took " + stopWatch.getTotalTimeSeconds() + " seconds");
@@ -122,7 +129,7 @@ public class CostCenterMirrorProcessor {
 
                                             try {
                                                 logManager.info("Inserting row");
-                                                updateRow(sciformaService.createDataViewRow(), costCenter);
+                                                createRow(sciformaService.createDataViewRow(), costCenter);
                                                 logManager.info("Row inserted");
                                                 status = true;
                                             } catch (PSException ex) {
@@ -168,8 +175,12 @@ public class CostCenterMirrorProcessor {
                             LOG.info("File processed");
 
                         }
+                    } else {
+                        return ReturnCode.FAILED_TO_ACCESS_TABLE;
                     }
 
+                } else {
+                    return ReturnCode.FAILED_TO_LOCK_TABLE;
                 }
 
             } else {
@@ -209,6 +220,16 @@ public class CostCenterMirrorProcessor {
         return Optional.empty();
     }
 
+    private boolean createRow(DataViewRow rowToUpdate, CostCenter costCenter) throws PSException {
+        rowToUpdate.setStringField("Internal cost center ID", costCenter.getInternalCostCenterId());
+        rowToUpdate.setStringField("Secondary mirror global cost center ID", costCenter.getSecondMirrorGccId());
+        rowToUpdate.setStringField("Secondary mirror global cost center RE", costCenter.getSecondMirrorGccRe());
+        rowToUpdate.setStringField("Last update by", costCenter.getLastUpdateBy());
+        rowToUpdate.setDateField("Last update date", costCenter.getLastUpdate());
+        rowToUpdate.setStringField("Status", costCenter.getStatus().toString().toLowerCase());
+        return true;
+    }
+    
     private boolean updateRow(DataViewRow rowToUpdate, CostCenter costCenter) throws PSException {
         rowToUpdate.setStringField("Last update by", costCenter.getLastUpdateBy());
         rowToUpdate.setDateField("Last update date", costCenter.getLastUpdate());

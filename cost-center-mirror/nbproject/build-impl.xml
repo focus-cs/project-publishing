@@ -23,6 +23,7 @@ is divided into following sections:
          xmlns:j2seproject1="http://www.netbeans.org/ns/j2se-project/1" 
          xmlns:j2seproject3="http://www.netbeans.org/ns/j2se-project/3" 
          xmlns:jaxrpc="http://www.netbeans.org/ns/j2se-project/jax-rpc" 
+         xmlns:ivy="antlib:org.apache.ivy.ant"
          xmlns:unless="ant:unless" 
          basedir=".." 
          default="default" 
@@ -48,10 +49,43 @@ is divided into following sections:
     <property name="distribution.dir" location="distribution"/>
     <property name="main-class" value="com.schneider.mstt.cost.center.mirror.CostCenterMirror" />
 
+    <property name="ivy.install.version" value="2.4.0"/>
+    <property name="ivy.jar.dir" value="${basedir}/ivy"/>
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar"/>
     <property name="build.dir" value="build"/>
     <property name="src.dir" value="src"/>
+    <target name="download-ivy" unless="skip.download">
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!--
+         download Ivy from web site so that it can be used even without any special installation
+        -->
+        <echo message="installing ivy..."/>
+        <get src="https://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
 
-    <!-- external libraries classpath, we don't need sources and javadoc -->
+    <!-- install ivy -->
+    <target name="install-ivy" depends="download-ivy" description="--> install ivy">
+        <!--
+         try to load Ivy here from local Ivy dir, in case the user has not already dropped
+                     it into Ant's lib dir (note that the latter copy will always take precedence).
+                     We will not fail as long as local lib dir exists (it may be empty) and
+                     Ivy is in at least one of Ant's lib dir or the local lib dir.
+        -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml" uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
+    
+    <!-- ivy end -->
+
+        <target name="init">
+        <ivy:retrieve/>
+        <ivy:dependencytree/>
+        <mkdir dir="${build.dir}" />
+    </target>
+
+<!--     external libraries classpath, we don't need sources and javadoc -->
     <path id="classpath">
         <fileset dir="${basedir}/">
             <include name="${lib.dir}/*.jar" />
@@ -60,12 +94,12 @@ is divided into following sections:
         </fileset>
     </path>
 
-    <!-- To work with external libraries, need classpath to compile -->
-    <target name="compile" description="compile the source ">
+<!--     To work with external libraries, need classpath to compile -->
+    <target name="compile" depends="init" description="compile the source ">
         <javac includeantruntime="false" srcdir="${src.dir}" destdir="${build.dir}" classpathref="classpath" />
     </target>
 
-    <!-- constructs the external libraries classpath name -->
+<!--     constructs the external libraries classpath name -->
     <pathconvert property="classpath.name" pathsep=" ">
         <path refid="classpath" />
         <mapper>
@@ -82,7 +116,7 @@ is divided into following sections:
         </copy>
     </target>
 
-    <!-- jar it, and declares the ext libraries in manifest.mf file -->
+<!--     jar it, and declares the ext libraries in manifest.mf file -->
     <target name="jar" depends="compile, copy-dependencies" description="package, output to JAR">
 
         <echo message="classpath.name : ${classpath.name} " />
@@ -106,7 +140,7 @@ is divided into following sections:
         <delete dir="${dist.dir}" />
     </target>
     
-    <!-- Default, run this -->
+<!--     Default, run this -->
     <target name="main" depends="clean, compile, jar, copy-resources" />
 
     <target name="copy-resources" description="copy Java resources like xml and properties files">

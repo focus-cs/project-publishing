@@ -58,15 +58,17 @@ public class SciformaService {
 
     public void closeConnection() {
 
-        try {
+        if (session != null) {
+            try {
 
-            if (session.isLoggedIn()) {
-                session.logout();
-                LOG.info("Logout successful");
+                if (session.isLoggedIn()) {
+                    session.logout();
+                    LOG.info("Logout successful");
+                }
+
+            } catch (PSException e) {
+                LOG.error("Failed to logout", e);
             }
-
-        } catch (PSException e) {
-            LOG.error("Failed to logout", e);
         }
 
     }
@@ -123,23 +125,26 @@ public class SciformaService {
 
         boolean result = false;
 
-        try {
-            global.save(false);
-            LOG.info("Global saved");
-            result = true;
-
-        } catch (PSException ex) {
-            LOG.error("Failed to save global");
-        } finally {
+        if (global != null) {
 
             try {
-                global.unlock();
-                LOG.info("Global unlocked");
-                result = false;
-            } catch (PSException ex) {
-                LOG.error("Failed to unlock global");
-            }
+                global.save(false);
+                LOG.info("Global saved");
+                result = true;
 
+            } catch (PSException ex) {
+                LOG.error("Failed to save global");
+            } finally {
+
+                try {
+                    global.unlock();
+                    LOG.info("Global unlocked");
+                    result = false;
+                } catch (PSException ex) {
+                    LOG.error("Failed to unlock global");
+                }
+
+            }
         }
 
         return result;

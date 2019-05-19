@@ -1,6 +1,7 @@
 package com.schneider.mstt.cost.center.mirror;
 
 import com.schneider.mstt.cost.center.mirror.processor.CostCenterMirrorProcessor;
+import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -12,6 +13,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class CostCenterMirror {
 
+    private static final Logger LOG = Logger.getLogger(CostCenterMirror.class);
+    
     @Autowired
     private CostCenterMirrorProcessor costCenterMirrorProcessor;
     
@@ -26,7 +29,7 @@ public class CostCenterMirror {
     }
     
     private void start() {
-        costCenterMirrorProcessor.process();
+        LOG.info("Application completed with return code " + costCenterMirrorProcessor.process().ordinal());
     }   
     
 }
