@@ -1,11 +1,5 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.schneider.mstt.cost.center.mirror.service;
 
-import com.schneider.mstt.cost.center.mirror.exceptions.SciformaException;
 import com.sciforma.psnext.api.DataViewRow;
 import com.sciforma.psnext.api.Global;
 import com.sciforma.psnext.api.LockException;
@@ -13,15 +7,13 @@ import com.sciforma.psnext.api.PSException;
 import com.sciforma.psnext.api.Session;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
-import org.springframework.util.StopWatch;
 
 @Configuration
-@PropertySource("file:${user.dir}/conf/psconnect.properties")
+@PropertySource("${propertySource}")
 public class SciformaService {
 
     private static final Logger LOG = Logger.getLogger(SciformaService.class);
@@ -49,7 +41,7 @@ public class SciformaService {
             return true;
 
         } catch (PSException e) {
-            LOG.error("Failed to connect to sciforma : " + e.getMessage(), e);
+            LOG.error("Failed to connect to Sciforma : " + e.getMessage(), e);
         }
 
         return false;
@@ -62,6 +54,7 @@ public class SciformaService {
             try {
 
                 if (session.isLoggedIn()) {
+                    LOG.info("Logging out from Sciforma");
                     session.logout();
                     LOG.info("Logout successful");
                 }
@@ -107,14 +100,15 @@ public class SciformaService {
         }
 
         try {
+            LOG.info("Locking Global");
             global.lock();
             LOG.info("Global locked");
             return true;
 
-        } catch (LockException ex) {
-            LOG.error("Global already locked by : " + ex.getLockingUser());
-        } catch (PSException ex) {
-            LOG.error("Failed to lock global");
+        } catch (LockException e) {
+            LOG.error("Global already locked by : " + e.getLockingUser());
+        } catch (PSException e) {
+            LOG.error("Failed to lock global", e);
         }
 
         return false;
@@ -132,16 +126,17 @@ public class SciformaService {
                 LOG.info("Global saved");
                 result = true;
 
-            } catch (PSException ex) {
-                LOG.error("Failed to save global");
+            } catch (PSException e) {
+                LOG.error("Failed to save global", e);
             } finally {
 
                 try {
+                    LOG.info("Unlocking Global");
                     global.unlock();
                     LOG.info("Global unlocked");
                     result = false;
-                } catch (PSException ex) {
-                    LOG.error("Failed to unlock global");
+                } catch (PSException e) {
+                    LOG.error("Failed to unlock global", e);
                 }
 
             }

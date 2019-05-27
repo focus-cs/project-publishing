@@ -29,7 +29,7 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.util.StopWatch;
 
 @Configuration
-@PropertySource("file:${user.dir}/conf/psconnect.properties")
+@PropertySource("${propertySource}")
 public class CostCenterMirrorProcessor {
 
     private static final Logger LOG = Logger.getLogger(CostCenterMirrorProcessor.class);
@@ -59,7 +59,7 @@ public class CostCenterMirrorProcessor {
             LOG.error("Missing request folder");
             return ReturnCode.MISSING_REQUEST_FOLDER;
         }
-        
+
         File results = new File(resultsDirectory);
         if (!results.exists()) {
             results.mkdirs();
@@ -69,6 +69,8 @@ public class CostCenterMirrorProcessor {
         if (!logs.exists()) {
             logs.mkdirs();
         }
+        
+        StopWatch stopWatch = new StopWatch("cost-center-mirror");
 
         try (Stream<Path> walk = Files.walk(Paths.get(requestDirectory))) {
 
@@ -80,21 +82,26 @@ public class CostCenterMirrorProcessor {
                 LOG.info("No CSV request file to be processed");
                 return ReturnCode.SUCCESS;
             }
-            
+
             LOG.info("Found " + paths.size() + " file(s) to process");
 
+            stopWatch.start("Logging to Sciforma");
             if (sciformaService.createConnection()) {
 
+                stopWatch.stop();
+
+                stopWatch.start("Locking Global");
                 if (sciformaService.openGlobal()) {
 
-                    StopWatch stopWatchDataView = new StopWatch();
-                    stopWatchDataView.start();
+                    stopWatch.stop();
+
+                    stopWatch.start("Retrieving dataview");
                     List<DataViewRow> costCenterMirrorManagementDataView = sciformaService.getDataView();
-                    stopWatchDataView.stop();
-                    LOG.info("DataView retrieved in " + stopWatchDataView.getTotalTimeSeconds() + " seconds");
+                    stopWatch.stop();
 
                     if (costCenterMirrorManagementDataView != null && !costCenterMirrorManagementDataView.isEmpty()) {
 
+                        stopWatch.start("Updating/inserting " + paths.size() + " row(s)");
                         for (Path path : paths) {
 
                             LogManager logManager = LogManager.builder()
@@ -113,12 +120,8 @@ public class CostCenterMirrorProcessor {
 
                                     logManager.info("Action : " + costCenter.getAction());
 
-                                    StopWatch stopWatch = new StopWatch();
-                                    stopWatch.start();
-                                    logManager.info("Looking for data row with key " + costCenter.getInternalCostCenterId() + " - " + costCenter.getSecondMirrorGccRe()+ " - " + costCenter.getSecondMirrorGccId());
+                                    logManager.info("Looking for data row with key " + costCenter.getInternalCostCenterId() + " - " + costCenter.getSecondMirrorGccRe() + " - " + costCenter.getSecondMirrorGccId());
                                     Optional<DataViewRow> existingRow = findRow(costCenterMirrorManagementDataView, costCenter);
-                                    stopWatch.stop();
-                                    logManager.info("Looking for data row took " + stopWatch.getTotalTimeSeconds() + " seconds");
 
                                     if (costCenter.getAction().equals(Action.CREATION)) {
 
@@ -175,24 +178,54 @@ public class CostCenterMirrorProcessor {
                             LOG.info("File processed");
 
                         }
+                        
+                        stopWatch.stop();
+                        
                     } else {
                         return ReturnCode.FAILED_TO_ACCESS_TABLE;
                     }
 
                 } else {
+
+                    if (stopWatch.isRunning()) {
+                        stopWatch.stop();
+                    }
+
+                    paths.forEach((path) -> {
+                        LogManager logManager = LogManager.builder()
+                                .directory(logsDirectory)
+                                .filename(getFileNameWithoutExtension(path.toFile()))
+                                .build();
+
+                        logManager.error("Failed to lock table");
+                        logManager.error("Error code : " + ReturnCode.FAILED_TO_LOCK_TABLE.ordinal());
+
+                        moveFile(path, false);
+                        logManager.saveLogFile(false);
+                    });
+
                     return ReturnCode.FAILED_TO_LOCK_TABLE;
                 }
 
             } else {
+                if (stopWatch.isRunning()) {
+                    stopWatch.stop();
+                }
                 return ReturnCode.MSTT_ACCESS;
             }
 
         } catch (IOException ex) {
             LOG.error(ex);
         } finally {
+            stopWatch.start("Save and close Global");
             sciformaService.saveAndCloseGlobal();
+            stopWatch.stop();
+            stopWatch.start("Logout from Sciforma");
             sciformaService.closeConnection();
+            stopWatch.stop();
         }
+        
+        LOG.info(stopWatch.prettyPrint());
 
         return ReturnCode.SUCCESS;
 
@@ -229,7 +262,7 @@ public class CostCenterMirrorProcessor {
         rowToUpdate.setStringField("Status", costCenter.getStatus().toString().toLowerCase());
         return true;
     }
-    
+
     private boolean updateRow(DataViewRow rowToUpdate, CostCenter costCenter) throws PSException {
         rowToUpdate.setStringField("Last update by", costCenter.getLastUpdateBy());
         rowToUpdate.setDateField("Last update date", costCenter.getLastUpdate());

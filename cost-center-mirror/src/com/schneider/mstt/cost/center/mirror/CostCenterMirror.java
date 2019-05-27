@@ -2,7 +2,6 @@ package com.schneider.mstt.cost.center.mirror;
 
 import com.schneider.mstt.cost.center.mirror.processor.CostCenterMirrorProcessor;
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -19,9 +18,7 @@ public class CostCenterMirror {
     private CostCenterMirrorProcessor costCenterMirrorProcessor;
     
     public static void main(String[] args) {
-        
-        PropertyConfigurator.configure("conf/log4j.properties");
-        
+                
         ApplicationContext context = new AnnotationConfigApplicationContext(CostCenterMirror.class);
         CostCenterMirror api = context.getBean(CostCenterMirror.class);
         

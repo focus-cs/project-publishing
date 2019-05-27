@@ -88,6 +88,7 @@ is divided into following sections:
 <!--     external libraries classpath, we don't need sources and javadoc -->
     <path id="classpath">
         <fileset dir="${basedir}/">
+            <include name="conf/*.properties" />
             <include name="${lib.dir}/*.jar" />
             <exclude name="${lib.dir}/*sources.jar"/>
             <exclude name="${lib.dir}/*javadoc.jar"/>
@@ -105,7 +106,7 @@ is divided into following sections:
         <mapper>
             <chainedmapper>
                 <flattenmapper />
-                <globmapper from="*.jar" to="lib/*.jar" />
+                <globmapper from="*.jar" to="./*.jar" />
             </chainedmapper>
         </mapper>
     </pathconvert>
@@ -127,7 +128,7 @@ is divided into following sections:
         <mkdir dir="${dist.docs.dir}" />
         <mkdir dir="${dist.conf.dir}" />
 
-        <jar jarfile="${dist.dir}/${projectName}.jar" basedir="${build.dir}">
+        <jar jarfile="${dist.dir}/lib/${projectName}.jar" basedir="${build.dir}">
             <manifest>
                 <attribute name="Main-Class" value="${main-class}" />
                 <attribute name="Class-Path" value="${classpath.name}" />
