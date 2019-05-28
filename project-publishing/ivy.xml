@@ -1,0 +1,50 @@
+<ivy-module version="2.0">
+    <info organisation="fr.sciforma" module="cost-center" />
+    <dependencies>
+        <dependency org="org.springframework" name="spring-context" rev="5.1.5.RELEASE">
+            <exclude module="spring-instrument"/>
+            <exclude module="javax.annotation-api"/>
+            <exclude module="javax.ejb-api"/>
+            <exclude module="javax.enterprise.concurrent-api"/>
+            <exclude module="javax.inject"/>
+            <exclude module="javax.interceptor-api"/>
+            <exclude module="money-api"/>
+            <exclude module="validation-api"/>
+            <exclude module="jaxws-api"/>
+            <exclude module="joda-time"/>
+            <exclude module="aspectjweaver"/>
+            <exclude module="bsh"/>
+            <exclude module="groovy"/>
+            <exclude module="hibernate-validator"/>
+            <exclude module="kotlin-reflect"/>
+            <exclude module="kotlin-stdlib"/>
+        </dependency>
+        <dependency org="log4j" name="log4j" rev="1.2.17">
+            <exclude module="mail"/>
+            <exclude module="junit"/>
+<!--            <exclude module="javaee-api"/>
+            <exclude module="oro"/>-->
+            <exclude module="geronimo-jms_1.1_spec"/>
+        </dependency>
+        <dependency org="org.apache.logging.log4j" name="log4j-core" rev="2.10.0">
+            <exclude module="org.osgi.core"/>
+            <exclude module="disruptor"/>
+            <exclude module="jctools-core"/>
+            <exclude module="jackson-core"/>
+            <exclude module="jackson-databind"/>
+            <exclude module="jackson-dataformat-yaml"/>
+            <exclude module="jackson-dataformat-xml"/>
+            <exclude module="woodstox-core"/>
+            <exclude module="jansi"/>
+            <exclude module="javax.mail"/>
+            <exclude module="javax.persistence"/>
+            <exclude module="jboss-jms-api_1.1_spec"/>
+            <exclude module="kafka-clients"/>
+            <exclude module="jeromq"/>
+            <exclude module="commons-compress"/>
+            <exclude module="commons-csv"/>
+            <exclude module="jcommander"/>
+        </dependency>
+        <dependency org="org.projectlombok" name="lombok" rev="1.18.8"/>
+    </dependencies>
+</ivy-module>
